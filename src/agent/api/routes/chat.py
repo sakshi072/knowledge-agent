@@ -1,0 +1,44 @@
+from fastapi import APIRouter
+import logging
+import uuid
+
+from agent.api.dependencies import get_graph
+from agent.core.exception import GraphExecutionException, ServiceUnavailableException
+from agent.graph.introspection import extract_tools_used
+from agent.schemas.chat import ChatRequest, ChatResponse
+
+router = APIRouter(tags=["chat"])
+logger = logging.getLogger(__name__)
+
+@router.post("/chat", response_model=ChatResponse)
+async def chat(
+    request:ChatRequest
+):
+    graph = get_graph()
+    if graph is None:
+        raise ServiceUnavailableException(
+            "Agent grap",
+            "Not initialized"
+        )
+
+    # thread_id IS the session identifier - no separate concept. Generate
+    # one for a fresh conversation; the caller must send it back on every
+    # follow-up to continue that same conversation.
+    thread_id = request.thread_id or str(uuid.uuid4())
+    config = {"configurable": {"thread_id":thread_id}}
+
+    logger.info(f"Chat request, thread_id={thread_id}: {request.message[:50]!r}")
+
+    try:
+        resp = await graph.ainvoke(
+            {"messages":[{"role":"user", "content":request.message}]},
+            config=config
+        )
+    except Exception as e:
+        raise GraphExecutionException(reason=str(e), thread_id=thread_id)
+
+    messages = resp["messages"]
+    final_message = messages[-1].content
+
+    tools_used = extract_tools_used(messages)
+    return ChatResponse(message=final_message, tools_used=tools_used, thread_id=thread_id)

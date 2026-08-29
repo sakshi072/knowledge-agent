@@ -1,0 +1,29 @@
+[tool.poetry]
+name = "knowledge-agent"
+version = "0.1.0"
+description = "LangGraph agent, served via FastAPI, connecting to knowledge-mcp-server for grounded retrieval"
+authors = ["Sakshi Tayal"]
+packages = [{ include = "agent", from = "src" }]
+
+[tool.poetry.dependencies]
+python = "^3.12"
+langgraph = "*"
+langchain = "*"
+langchain-mcp-adapters = "*"
+langchain-ollama = "*"
+langchain-openai = "*"
+fastapi = "*"
+uvicorn = "*"
+pydantic-settings = "^2.3.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.2.0"
+pytest-asyncio = "^0.23.0"
+httpx = "*"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
