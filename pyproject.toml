@@ -7,11 +7,17 @@ packages = [{ include = "agent", from = "src" }]
 
 [tool.poetry.dependencies]
 python = "^3.12"
+# Loose constraints deliberately on fast-moving packages - specific-
+# number pins on langgraph/langchain/langchain-mcp-adapters is exactly
+# what caused a real dependency conflict earlier (fastmcp). Let Poetry's
+# solver pick mutually-compatible versions.
 langgraph = "*"
+langgraph-checkpoint-postgres = "*"
 langchain = "*"
 langchain-mcp-adapters = "*"
 langchain-ollama = "*"
 langchain-openai = "*"
+langfuse = "*"
 fastapi = "*"
 uvicorn = "*"
 pydantic-settings = "^2.3.0"

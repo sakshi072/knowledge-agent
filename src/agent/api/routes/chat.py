@@ -6,6 +6,7 @@ from agent.api.dependencies import get_graph
 from agent.core.exception import GraphExecutionException, ServiceUnavailableException
 from agent.graph.introspection import extract_tools_used
 from agent.schemas.chat import ChatRequest, ChatResponse
+from agent.clients.langfuse_client import get_langfuse_callback_handler
 
 router = APIRouter(tags=["chat"])
 logger = logging.getLogger(__name__)
@@ -27,11 +28,17 @@ async def chat(
     thread_id = request.thread_id or str(uuid.uuid4())
     config = {"configurable": {"thread_id":thread_id}}
 
+    handler = get_langfuse_callback_handler()
+    if handler:
+        config["callbacks"] = [handler]
+
     logger.info(f"Chat request, thread_id={thread_id}: {request.message[:50]!r}")
 
     try:
         resp = await graph.ainvoke(
-            {"messages":[{"role":"user", "content":request.message}]},
+            {"messages":[{"role":"user", "content":request.message}],
+             "iteration_count": 0,
+             "guardrail_rejected": False,},
             config=config
         )
     except Exception as e:
@@ -41,4 +48,12 @@ async def chat(
     final_message = messages[-1].content
 
     tools_used = extract_tools_used(messages)
-    return ChatResponse(message=final_message, tools_used=tools_used, thread_id=thread_id)
+    logger.info(
+        f"Chat response, thread_id={thread_id}: tools_used={tools_used}, "
+    )
+
+    return ChatResponse(
+        message=final_message, 
+        tools_used=tools_used, 
+        thread_id=thread_id
+    )

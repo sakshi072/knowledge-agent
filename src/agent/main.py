@@ -7,6 +7,7 @@ from agent.core.exception_handler import register_exception_handler
 from agent.api.dependencies import set_graph
 from agent.api.routes import chat
 from agent.graph.builder import build_graph
+from agent.graph.checkpointer import get_checkpointer, close_checkpointer
 
 configure_logging()
 
@@ -19,7 +20,8 @@ async def lifespan(app:FastAPI):
 
     logger.info("Starting enterprise-knowledge-agent...")
     try:
-        graph = await build_graph()
+        checkpointer = await get_checkpointer()
+        graph = await build_graph(checkpointer)
         set_graph(graph)
         logger.info("Agent graph initialized successfully")
     except Exception as e:
@@ -29,6 +31,7 @@ async def lifespan(app:FastAPI):
     yield
 
     logger.info("Shutting down knowledge-agent...")
+    await close_checkpointer()
 
 app = FastAPI(title="Knowledge Agent", lifespan=lifespan)
 

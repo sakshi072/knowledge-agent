@@ -1,9 +1,11 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field
 from functools import lru_cache
+from typing import Optional
 
 class AgentSettings(BaseSettings):
     agent_model:str = "ollama:llama3.1"
+    max_tool_call_iterations:int = 10
 
     model_config = SettingsConfigDict(
         env_file=".env", 
@@ -22,12 +24,36 @@ class MCPSettings(BaseSettings):
         extra="ignore"
     )
 
+class LangFuseSettings(BaseSettings):
+    public_key: Optional[str] = None
+    secret_key: Optional[str] = None
+    base_url:str = "https://us.cloud.langfuse.com"
+
+    model_config = SettingsConfigDict(
+        env_file=".env", 
+        env_prefix="LANGFUSE_", 
+        case_sensitive=False,
+        extra="ignore"
+    )
+
+class PostgresSettings(BaseSettings):
+    checkpoint_url:Optional[str] = None
+
+    model_config = SettingsConfigDict(
+        env_file=".env", 
+        env_prefix="POSTGRES_", 
+        case_sensitive=False,
+        extra="ignore"
+    )
+    
 class Settings(BaseSettings):
     ENV: str = "development"
     PORT: int = 8003
 
     agent: AgentSettings = Field(default_factory=AgentSettings)
     mcp: MCPSettings = Field(default_factory=MCPSettings)
+    langfuse: LangFuseSettings = Field(default_factory=LangFuseSettings)
+    postgres: PostgresSettings = Field(default_factory=PostgresSettings)
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
