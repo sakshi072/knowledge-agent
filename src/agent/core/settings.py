@@ -4,7 +4,7 @@ from functools import lru_cache
 from typing import Optional
 
 class AgentSettings(BaseSettings):
-    agent_model:str = "ollama:llama3.1"
+    model:str = "ollama:llama3.1"
     max_tool_call_iterations:int = 10
 
     model_config = SettingsConfigDict(

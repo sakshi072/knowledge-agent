@@ -20,6 +20,7 @@ langchain-openai = "*"
 langfuse = "*"
 fastapi = "*"
 uvicorn = "*"
+python-dotenv = "*"
 pydantic-settings = "^2.3.0"
 
 [tool.poetry.group.dev.dependencies]

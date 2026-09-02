@@ -4,7 +4,7 @@ import uuid
 
 from agent.api.dependencies import get_graph
 from agent.core.exception import GraphExecutionException, ServiceUnavailableException
-from agent.graph.introspection import extract_tools_used
+from agent.graph.introspection import extract_tools_used, extract_citations
 from agent.schemas.chat import ChatRequest, ChatResponse
 from agent.clients.langfuse_client import get_langfuse_callback_handler
 
@@ -48,6 +48,7 @@ async def chat(
     final_message = messages[-1].content
 
     tools_used = extract_tools_used(messages)
+    citations = extract_citations(messages)
     logger.info(
         f"Chat response, thread_id={thread_id}: tools_used={tools_used}, "
     )
@@ -55,5 +56,6 @@ async def chat(
     return ChatResponse(
         message=final_message, 
         tools_used=tools_used, 
+        citations=citations,
         thread_id=thread_id
     )

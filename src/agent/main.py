@@ -8,6 +8,8 @@ from agent.api.dependencies import set_graph
 from agent.api.routes import chat
 from agent.graph.builder import build_graph
 from agent.graph.checkpointer import get_checkpointer, close_checkpointer
+from dotenv import load_dotenv
+load_dotenv()
 
 configure_logging()
 

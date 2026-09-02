@@ -26,10 +26,10 @@ accumulates history via the checkpointer; a different thread_id starts
 fresh.
 """
 from agent.clients.mcp_client import load_mcp_tools
-from langgraph.graph import StateGraph, MessagesState, END
+from langgraph.graph import StateGraph, END
 from langgraph.prebuilt import ToolNode, tools_condition
 from langchain.chat_models import init_chat_model
-from agent.graph.nodes import make_call_model_node, max_iteration_node, input_guardrail_node
+from agent.graph.nodes import make_call_model_node, max_iteration_node, input_guardrail_node, output_guardrail_node
 from agent.graph.checkpointer import get_checkpointer
 from agent.core.settings import settings
 from agent.graph.state import AgentState
@@ -44,35 +44,40 @@ def route_after_input(state:AgentState):
 def route_after_model(state:AgentState):
     if state.get("iteration_count", 0) >= MAX_ITERATIONS:
         return "max_iterations"
-    return tools_condition(state)
+    decision = tools_condition(state)
+    if decision == "tools":
+        return "tools"
+    return "output_guardrail"
 
 async def build_graph(checkpointer=None):
     tools = await load_mcp_tools()
 
-    model = init_chat_model(settings.agent.agent_model)
+    model = init_chat_model(settings.agent.model)
     model_with_tools = model.bind_tools(tools)
 
     call_model = make_call_model_node(model_with_tools)
 
-    graph = StateGraph(MessagesState)
+    graph = StateGraph(AgentState)
     graph.add_node("input_guardrail", input_guardrail_node)
     graph.add_node("call_model", call_model)
     graph.add_node("tools", ToolNode(tools))
     graph.add_node("max_iterations", max_iteration_node)
+    graph.add_node("output_guardrail", output_guardrail_node)
 
     graph.set_entry_point("input_guardrail")
     graph.add_conditional_edges(
         "input_guardrail",
         route_after_input,
-        {"call_mode": "call_model", END:END}
+        {"call_model": "call_model", END:END}
     )
     graph.add_conditional_edges(
         "call_model", 
         route_after_model, 
-        {"tools": "tools", "__end__": END, "max_iterations": "max_iterations"},
+        {"tools": "tools", "output_guardrail": "output_guardrail", "max_iterations": "max_iterations"},
       )
     graph.add_edge("tools", "call_model")
     graph.add_edge("max_iterations", END)
+    graph.add_edge("output_guardrail", END)
 
     if checkpointer is None:
         checkpointer = get_checkpointer()

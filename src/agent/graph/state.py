@@ -21,3 +21,4 @@ class AgentState(MessagesState):
 
     iteration_count:int
     guardrail_rejected:bool
+    turn_start_index: int
