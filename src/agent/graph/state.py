@@ -1,6 +1,6 @@
 from langgraph.graph import MessagesState
 
-class AgentState(MessagesState):
+class KnowledgeAgentState(MessagesState):
     """Extends the minimal MessagesState with one field: how many times
     call_model has run WITHIN the current user turn's processing. Plain
     int field, no reducer (unlike `messages`, which uses add_messages to

@@ -51,8 +51,8 @@ async def chat(
     citations = extract_citations(messages)
     logger.info(
         f"Chat response, thread_id={thread_id}: tools_used={tools_used}, "
+        f"{len(citations)} citation(s), answer={final_message[:150]!r}"
     )
-
     return ChatResponse(
         message=final_message, 
         tools_used=tools_used, 

@@ -11,7 +11,7 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import SystemMessage, AIMessage
 
 from agent.graph.prompts import get_system_prompt
-from agent.graph.state import AgentState
+from agent.graph.state import KnowledgeAgentState
 from agent.graph.introspection import extract_tools_used, extract_citations
 import logging
 
@@ -21,7 +21,7 @@ MAX_INPUT_LENGTH = 4000
 
 def make_call_model_node(model_with_tools: BaseChatModel) -> Callable:
     """Returns the actual node function"""
-    async def call_model(state: AgentState):
+    async def call_model(state: KnowledgeAgentState):
         messages_with_system = [SystemMessage(content=get_system_prompt())] + state["messages"]
         response = await model_with_tools.ainvoke(messages_with_system)
 
@@ -30,7 +30,7 @@ def make_call_model_node(model_with_tools: BaseChatModel) -> Callable:
 
     return call_model
 
-async def max_iteration_node(state:AgentState):
+async def max_iteration_node(state:KnowledgeAgentState):
     """Graceful termination when the loop guard trips - without this,
     forcing END directly after call_model could leave the last message
     as a tool-call-only AIMessage with EMPTY content (the model was mid-
@@ -47,7 +47,7 @@ async def max_iteration_node(state:AgentState):
         ]
     }
 
-async def input_guardrail_node(state:AgentState):
+async def input_guardrail_node(state:KnowledgeAgentState):
     """Deterministic, no LLM call needed - runs BEFORE call_model, as the
     graph's entry point. Two checks:
     - empty/whitespace-only content: Pydantic's min_length=1 at the API
@@ -80,18 +80,30 @@ async def input_guardrail_node(state:AgentState):
     return {"guardrail_reject":False,  "turn_start_index": turn_start_index,}
 
 _INTERNAL_IDENTIFIER_BLOCKLIST = [
-    "AgentState",
+    "KnowledgeAgentState",
     "input_guardrail_node",
     "max_iterations_node",
     "route_after_model",
     "route_after_guardrail",
 ]
 
-async def output_guardrail_node(state:AgentState):
+import re
+
+def _strip_code_blocks(text: str) -> str:
+    """Legitimate retrieved code samples are the real carrier risk for
+    accidental identifier collisions - strip fenced code blocks before
+    checking for leaked internal identifiers, since a name appearing
+    inside an accurately-relayed code sample isn't the same signal as
+    it appearing in the model's own synthesized prose."""
+    return re.sub(r"```.*?```", "", text, flags=re.DOTALL)
+
+async def output_guardrail_node(state:KnowledgeAgentState):
     latest_message = state["messages"][-1]
     content = latest_message.content if isinstance(latest_message.content, str) else ""
 
-    leaked = [name for name in _INTERNAL_IDENTIFIER_BLOCKLIST if name in content]
+    stripped_code = _strip_code_blocks(content)
+
+    leaked = [name for name in _INTERNAL_IDENTIFIER_BLOCKLIST if name in stripped_code]
     if leaked:
         logger.warning(
             f"Output guardrail caught internal identifier leakage: {leaked} - "

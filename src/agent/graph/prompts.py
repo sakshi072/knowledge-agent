@@ -22,8 +22,9 @@ def get_system_prompt() -> str:
 
     try:
         prompt = client.get_prompt(PROMPT_NAME, fallback=_LOCAL_FALLBACK_PROMPT)
-        logger.info(f"Prompt from langfuse: {prompt}")
-        return prompt.compile()
+        compiled_prompt = prompt.compile()
+        logger.info(f"System prompt being used:\n{compiled_prompt}")
+        return compiled_prompt
     except Exception as e:
         logger.warning(f"Failed to fetch prompt from Langfuse, using local fallback: {e}")
         return _LOCAL_FALLBACK_PROMPT

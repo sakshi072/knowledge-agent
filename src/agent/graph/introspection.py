@@ -55,3 +55,22 @@ def extract_citations(messages: List) -> List[Citation]:
                     file_url=file_url, similarity=source.get("similarity"), text=source.get("parent_text") or source.get("text"),
                 )
     return list(citations_by_url.values())
+
+def extract_context(messages: List) -> List[str]:
+    seen,context = set(), []
+    for msg in messages:
+        if not isinstance(msg, ToolMessage):
+            continue
+        try:
+            data = json.loads(_get_text_content(msg))
+        except (json.JSONDecodeError, TypeError):
+                    continue
+          
+        sources = data.get("sources") if isinstance(data, dict) else None
+        for source in sources or []:
+            text = source.get("parent_text") or source.get("text")
+            if text and text not in seen:
+                seen.add(text)
+                context.append(text)
+
+    return context

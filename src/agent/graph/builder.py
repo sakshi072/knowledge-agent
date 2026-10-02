@@ -32,16 +32,16 @@ from langchain.chat_models import init_chat_model
 from agent.graph.nodes import make_call_model_node, max_iteration_node, input_guardrail_node, output_guardrail_node
 from agent.graph.checkpointer import get_checkpointer
 from agent.core.settings import settings
-from agent.graph.state import AgentState
+from agent.graph.state import KnowledgeAgentState
 
 MAX_ITERATIONS = settings.agent.max_tool_call_iterations
 
-def route_after_input(state:AgentState):
+def route_after_input(state:KnowledgeAgentState):
     if state.get("guardrail_rejected", False):
         return END
     return "call_model"
 
-def route_after_model(state:AgentState):
+def route_after_model(state:KnowledgeAgentState):
     if state.get("iteration_count", 0) >= MAX_ITERATIONS:
         return "max_iterations"
     decision = tools_condition(state)
@@ -52,12 +52,12 @@ def route_after_model(state:AgentState):
 async def build_graph(checkpointer=None):
     tools = await load_mcp_tools()
 
-    model = init_chat_model(settings.agent.model)
+    model = init_chat_model(settings.agent.model, temperature=0)
     model_with_tools = model.bind_tools(tools)
 
     call_model = make_call_model_node(model_with_tools)
 
-    graph = StateGraph(AgentState)
+    graph = StateGraph(KnowledgeAgentState)
     graph.add_node("input_guardrail", input_guardrail_node)
     graph.add_node("call_model", call_model)
     graph.add_node("tools", ToolNode(tools))

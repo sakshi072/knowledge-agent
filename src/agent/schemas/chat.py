@@ -39,12 +39,15 @@ class ChatResponse(BaseModel):
         "from the answer text.",
     )
     citations: List[Citation] = Field(
-            default_factory=list,
-            description="Source documents retrieved this turn, deduplicated by "
-            "file_url. Empty if no retrieval tool was called, or a called "
-            "tool's output wasn't parseable as a search response.",
-        )
+        default_factory=list,
+        description="Source documents retrieved this turn, deduplicated by "
+        "file_url. Empty if no retrieval tool was called, or a called "
+        "tool's output wasn't parseable as a search response.",
+    )
     thread_id:str = Field(
         ..., description="Always echoed back - the caller's own value if provided, "
         "or a newly generated one if this was a fresh conversation."
+    )
+    retrieved_contexts: List[str] = Field(
+
     )
