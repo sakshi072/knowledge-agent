@@ -4,7 +4,7 @@ import uuid
 
 from agent.api.dependencies import get_graph
 from agent.core.exception import GraphExecutionException, ServiceUnavailableException
-from agent.graph.introspection import extract_tools_used, extract_citations
+from agent.graph.introspection import extract_tools_used, extract_citations, extract_context
 from agent.schemas.chat import ChatRequest, ChatResponse
 from agent.clients.langfuse_client import get_langfuse_callback_handler
 
@@ -47,15 +47,22 @@ async def chat(
     messages = resp["messages"]
     final_message = messages[-1].content
 
-    tools_used = extract_tools_used(messages)
-    citations = extract_citations(messages)
+    this_turn = messages[resp.get("turn_start_index", 0):]
+
+    tools_used = extract_tools_used(this_turn)
+    citations = extract_citations(this_turn)
+    retrieved_contexts = extract_context(this_turn)
+
     logger.info(
         f"Chat response, thread_id={thread_id}: tools_used={tools_used}, "
-        f"{len(citations)} citation(s), answer={final_message[:150]!r}"
+        f"{len(citations)} citation(s), {len(retrieved_contexts)} context chunk(s), "
+        f"answer={final_message[:150]!r}"
     )
+
     return ChatResponse(
         message=final_message, 
         tools_used=tools_used, 
         citations=citations,
+        retrieved_contexts=retrieved_contexts,
         thread_id=thread_id
     )

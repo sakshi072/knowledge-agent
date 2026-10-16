@@ -15,7 +15,7 @@ class AgentSettings(BaseSettings):
     )
 
 class MCPSettings(BaseSettings):
-    MCP_SERVER_URL: str = "http://localhost:8002/mcp"
+    MCP_SERVER_URL: str = "http://127.0.0.1:8002/mcp"
 
     model_config = SettingsConfigDict(
         env_file=".env", 

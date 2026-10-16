@@ -19,6 +19,19 @@ def _get_text_content(msg) -> str:
         return "".join(parts)
     return ""
 
+def _iter_sources(messages: List):
+    """Yield every search source from every ToolMessage, in order."""
+    for msg in messages:
+        if not isinstance(msg, ToolMessage):
+            continue
+        try:
+            data = json.loads(_get_text_content(msg))
+        except (json.JSONDecodeError, TypeError):
+            continue
+        sources = data.get("sources") if isinstance(data, dict) else None
+        for source in sources or []:
+            yield source
+
 def extract_tools_used(messages:List) -> List[str]:
     seen = []
 
@@ -32,45 +45,34 @@ def extract_tools_used(messages:List) -> List[str]:
     return seen
 
 def extract_citations(messages: List) -> List[Citation]:
-    citations_by_url = {}
+    """One citation per file_url. When several chunks come from the same page,
+    keep the one with the highest similarity (not simply the first seen)."""
+    best_by_url = {}  # file_url -> source dict
 
-    for msg in messages:
-        if not isinstance(msg, ToolMessage):
+    for source in _iter_sources(messages):
+        file_url = source.get("file_url")
+        if not file_url:
             continue
-        try:
-            data = json.loads(_get_text_content(msg))
-        except (json.JSONDecodeError, TypeError):
-            continue
+        current = best_by_url.get(file_url)
+        if current is None or (source.get("similarity") or 0) > (current.get("similarity") or 0):
+            best_by_url[file_url] = source
 
-        sources = data.get("sources") if isinstance(data, dict) else None
-        if not sources:
-            continue
-
-        for source in sources:
-            file_url = source.get("file_url")
-            if not file_url:
-                continue
-            if file_url not in citations_by_url:
-                citations_by_url[file_url] = Citation(
-                    file_url=file_url, similarity=source.get("similarity"), text=source.get("parent_text") or source.get("text"),
-                )
-    return list(citations_by_url.values())
+    return [
+        Citation(
+            file_url=url,
+            similarity=src.get("similarity"),
+            text=src.get("parent_text") or src.get("text"),
+        )
+        for url, src in best_by_url.items()
+    ]
 
 def extract_context(messages: List) -> List[str]:
     seen,context = set(), []
-    for msg in messages:
-        if not isinstance(msg, ToolMessage):
-            continue
-        try:
-            data = json.loads(_get_text_content(msg))
-        except (json.JSONDecodeError, TypeError):
-                    continue
-          
-        sources = data.get("sources") if isinstance(data, dict) else None
-        for source in sources or []:
-            text = source.get("parent_text") or source.get("text")
-            if text and text not in seen:
-                seen.add(text)
-                context.append(text)
+
+    for source in _iter_sources(messages):
+        text = source.get("parent_text") or source.get("text")
+        if text and text not in seen:
+            seen.add(text)
+            context.append(text)
 
     return context

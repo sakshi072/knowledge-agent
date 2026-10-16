@@ -49,5 +49,6 @@ class ChatResponse(BaseModel):
         "or a newly generated one if this was a fresh conversation."
     )
     retrieved_contexts: List[str] = Field(
-
+        default_factory=list,
+        description="Context when parent text "
     )
