@@ -8,7 +8,7 @@ where the tools are actually loaded, not here.
 """
 from typing import Callable
 from langchain_core.language_models import BaseChatModel
-from langchain_core.messages import SystemMessage, AIMessage
+from langchain_core.messages import SystemMessage, AIMessage, ToolMessage
 
 from agent.graph.prompts import get_system_prompt
 from agent.graph.state import KnowledgeAgentState
@@ -25,6 +25,8 @@ def make_call_model_node(model_with_tools: BaseChatModel) -> Callable:
         messages_with_system = [SystemMessage(content=get_system_prompt())] + state["messages"]
         response = await model_with_tools.ainvoke(messages_with_system)
 
+        meta = getattr(response, "response_metadata", {}) or {}
+        logger.info(f"LLM call served by model={meta.get('model_name') or meta.get('model') or 'unknown'}")
         current_count = state.get("iteration_count", 0)
         return {"messages": [response], "iteration_count": current_count+1}
 
@@ -77,7 +79,7 @@ async def input_guardrail_node(state:KnowledgeAgentState):
                         f"{MAX_INPUT_LENGTH}). Could you shorten your question?")]
         }
 
-    return {"guardrail_reject":False,  "turn_start_index": turn_start_index,}
+    return {"guardrail_rejected":False,  "turn_start_index": turn_start_index,}
 
 _INTERNAL_IDENTIFIER_BLOCKLIST = [
     "KnowledgeAgentState",
@@ -126,18 +128,34 @@ async def output_guardrail_node(state:KnowledgeAgentState):
     if tools_used_this_turn:
         citations_this_turn = extract_citations(this_turns_messages)
         if not citations_this_turn:
-            logger.warning(
-                f"Citation gate triggered: tool(s) {tools_used_this_turn} called this turn "
-                f"but no citations found - replacing answer with an honest non-answer"
+            tool_failed = any(
+                isinstance(m, ToolMessage) and getattr(m, "status", None) == "error"
+                for m in this_turns_messages
             )
+            if tool_failed:
+                logger.error(
+                    f"Search tool failed this turn (tools={tools_used_this_turn}) - "
+                    f"returning a service-unavailable message, not a non-answer"
+                )
+                reply = (
+                    "I couldn't reach the documentation search just now, so I can't "
+                    "answer reliably. Please try again in a moment."
+                )
+            else:
+                logger.warning(
+                    f"Citation gate triggered: tool(s) {tools_used_this_turn} called this turn "
+                    f"but no citations found - replacing answer with an honest non-answer"
+                )
+                reply = (
+                    "I don't have information about that in my knowledge base. "
+                    "Could you rephrase your question or ask about a different "
+                    "LangChain/MCP topic?"
+                )
+
             return {
                 "messages": [
                     AIMessage(
-                        content=(
-                            "I don't have information about that in my knowledge base. "
-                            "Could you rephrase your question or ask about a different "
-                            "LangChain/MCP topic?"
-                        ),
+                        content=reply,
                         id=latest_message.id,
                     )
                 ]

@@ -25,6 +25,7 @@ LangGraph has no separate "session" concept. Same thread_id across calls
 accumulates history via the checkpointer; a different thread_id starts
 fresh.
 """
+import logging
 from agent.clients.mcp_client import load_mcp_tools
 from langgraph.graph import StateGraph, END
 from langgraph.prebuilt import ToolNode, tools_condition
@@ -34,7 +35,18 @@ from agent.graph.checkpointer import get_checkpointer
 from agent.core.settings import settings
 from agent.graph.state import KnowledgeAgentState
 
+logger = logging.getLogger(__name__)
 MAX_ITERATIONS = settings.agent.max_tool_call_iterations
+
+def _make_model(model_name:str):
+    """init_chat_model with a per-call timeout and SDK-level retries
+    (the OpenAI/Anthropic SDKs retry 429s, 5xx and connection errors with
+    backoff). Ollama's client doesn't accept max_retries, so it only gets
+    the timeout."""
+    kwargs = {"temperature": 0, "timeout": settings.agent.llm_timeout_seconds}
+    if not model_name.startswith("ollama"):
+        kwargs["max_retries"] = settings.agent.llm_max_retries
+    return init_chat_model(model_name, **kwargs)
 
 def route_after_input(state:KnowledgeAgentState):
     if state.get("guardrail_rejected", False):
@@ -52,15 +64,21 @@ def route_after_model(state:KnowledgeAgentState):
 async def build_graph(checkpointer=None):
     tools = await load_mcp_tools()
 
-    model = init_chat_model(settings.agent.model, temperature=0)
-    model_with_tools = model.bind_tools(tools)
+    # model = init_chat_model(settings.agent.model, temperature=0)
+    # model_with_tools = model.bind_tools(tools)
+
+    model_with_tools = _make_model(settings.agent.model).bind_tools(tools)
+    if settings.agent.fallback_model:
+        fallback = _make_model(settings.agent.fallback_model).bind_tools(tools)
+        model_with_tools = model_with_tools.with_fallbacks([fallback])
+        logger.info(f"LLM fallback enabled: {settings.agent.model} -> {settings.agent.fallback_model}")
 
     call_model = make_call_model_node(model_with_tools)
 
     graph = StateGraph(KnowledgeAgentState)
     graph.add_node("input_guardrail", input_guardrail_node)
     graph.add_node("call_model", call_model)
-    graph.add_node("tools", ToolNode(tools))
+    graph.add_node("tools", ToolNode(tools, handle_tool_errors=True))
     graph.add_node("max_iterations", max_iteration_node)
     graph.add_node("output_guardrail", output_guardrail_node)
 

@@ -22,7 +22,7 @@ async def load_mcp_tools() -> List[BaseTool]:
     client = MultiServerMCPClient(
         {
             "knowledge_base": {
-                "url": settings.mcp.MCP_SERVER_URL,
+                "url": settings.mcp.server_url,
                 "transport": "streamable_http"
             }
         }

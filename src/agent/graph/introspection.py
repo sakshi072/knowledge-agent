@@ -15,7 +15,7 @@ def _get_text_content(msg) -> str:
             if isinstance(block, dict) and block.get("type") == "text":
                 parts.append(block.get("text", ""))
             elif isinstance(block, str):
-                parts.append(str)
+                parts.append(block)
         return "".join(parts)
     return ""
 

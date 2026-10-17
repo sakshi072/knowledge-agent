@@ -1,12 +1,17 @@
 from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional, List
 
+
+MAX_MESSAGE_LENGTH = 4000
+
 class ChatRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    message: str = Field(..., min_length=1, description="The user's query message")
+    message: str = Field(..., min_length=1, max_length=MAX_MESSAGE_LENGTH, description="The user's query message")
     thread_id: Optional[str] = Field(
         None,
+        max_length=64,
+        pattern=r"^[A-Za-z0-9._-]+$",
         description="Conversation/session identifier. Omit on the first "
         "message of a new conversation - the server generates one and "
         "returns it. Send the same value on every follow-up to continue "
@@ -50,5 +55,6 @@ class ChatResponse(BaseModel):
     )
     retrieved_contexts: List[str] = Field(
         default_factory=list,
-        description="Context when parent text "
+        description="Text of the retrieved passages the model read this turn "
+        "(parent text when available).",
     )

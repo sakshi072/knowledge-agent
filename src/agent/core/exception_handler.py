@@ -30,18 +30,14 @@ async def agent_exception_handler(request: Request, exc: AgentBaseException):
 
     if should_log_traceback(exc.status_code):
         logger.error(
-            f"[{request_id}] {exc.error_code}: {exc.message}",
-            extra={"request_id": request_id, "error_code": exc.error_code, "details": exc.details},
-            exc_info=True,
+            f"{exc.error_code}: {exc.message} | internal_reason={exc.internal_reason!r}",
+            exc_info=(type(exc), exc, exc.__traceback__),
         )
     else:
-        logger.warning(
-            f"[{request_id}] {exc.error_code}: {exc.message}",
-            extra={"request_id": request_id, "error_code": exc.error_code},
-        )
+        logger.warning(f"{exc.error_code}: {exc.message}")
 
     detail = sanitize_error_details(exc.details) if exc.details else {}
-    detail["reques_id"] = request_id
+    detail["request_id"] = request_id
     detail["error_code"] = exc.error_code
 
     return JSONResponse(
@@ -50,6 +46,7 @@ async def agent_exception_handler(request: Request, exc: AgentBaseException):
             "error": exc.status_code, 
             "message": exc.message, 
             "detail": detail},
+        headers=exc.headers or None
     )
 
 async def http_exception_handler(request: Request, exc: HTTPException):
@@ -83,8 +80,8 @@ async def validation_exception_handler(request:Request, exc:RequestValidationErr
 async def general_exception_handler(request: Request, exc: Exception):
     request_id = get_request_id(request)
     logger.critical(
-        f"[{request_id}] UNHANDLED EXCEPTION: {type(exc).__name__}: {exc}",
-        extra={"request_id": request_id, "traceback": traceback.format_exc()},
+        f"UNHANDLED EXCEPTION: {type(exc).__name__}: {exc}",
+        extra={"traceback": traceback.format_exc()},
         exc_info=True,
     )
     return JSONResponse(

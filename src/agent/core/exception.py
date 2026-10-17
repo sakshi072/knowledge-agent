@@ -12,11 +12,15 @@ class AgentBaseException(Exception):
         error_code:str = "AGENT_ERROR",
         status_code: int = 500,
         details:Optional[Dict[str, Any]] = None,
+        headers: Optional[Dict[str, str]] = None,
+        internal_reasons: Optional[str] = None
     ):
         self.message = message
         self.error_code = error_code
         self.status_code = status_code
         self.details = details or {}
+        self.headers = headers or {}
+        self.internal_reasons = internal_reasons
         super().__init__(message)
 
 class InvalidChatRequestException(AgentBaseException):
@@ -44,10 +48,22 @@ class GraphExecutionException(AgentBaseException):
         super().__init__(
             message="Agent failed to process the request",
             error_code="GRAPH_EXECUTION_FAILED",
-            status_code=500,
-            details={"reason": reason, "thread_id": thread_id},
+            status_code=502,
+            details={"thread_id": thread_id},
+            internal_reasons=reason
         )
 
+class RequestTimeoutException(AgentBaseException):
+    """The whole request exceeded AGENT_REQUEST_TIMEOUT_SECONDS."""
+
+    def __init__(self, timeout_seconds: float, thread_id: Optional[str]=None):
+        super().__init__(
+            message="The request took too long to complete",
+            error_code="REQUEST_TIMEOUT",
+            status_code=504,
+            details={"thread_id": thread_id},
+            internal_reasons=f"exceeded {timeout_seconds}"
+        )
 class ServiceUnavailableException(AgentBaseException):
     """Raised when the agent graph hasn't been initialized yet (e.g. MCP
     tool loading failed at startup) - mirrors rag-mcp-service's identical
@@ -59,4 +75,25 @@ class ServiceUnavailableException(AgentBaseException):
             error_code="SERVICE_UNAVAILABLE",
             status_code=503,
             details={"reason": reason},
+        )
+
+class UnauthorizedException(AgentBaseException):
+    """Missing or wrong X-API-Key."""
+
+    def __init__(self):
+        super().__init__(
+            message="Missing or invalid API key",
+            error_code="UNAUTHORIZED",
+            status_code=401,
+            headers={"WWW-Authenticate": "ApiKey"},
+        )
+
+class RateLimitExceededException(AgentBaseException):
+    def __init__(self, retry_after_seconds: int):
+        super().__init__(
+            message="Too many requests",
+            error_code="RATE_LIMITED",
+            status_code=429,
+            details={"retry_after_seconds": retry_after_seconds},
+            headers={"Retry-After": str(retry_after_seconds)},
         )

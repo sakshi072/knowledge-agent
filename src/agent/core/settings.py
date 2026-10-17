@@ -5,7 +5,16 @@ from typing import Optional
 
 class AgentSettings(BaseSettings):
     model:str = "ollama:llama3.1"
+    fallback_model: Optional[str] = None
     max_tool_call_iterations:int = 10
+
+    # Per LLM call, and how many times the provider SDK retries it
+    # (SDK retries cover 429 / 5xx / connection errors with backoff).
+    llm_timeout_seconds: float = 45.0
+    llm_max_retries: int = 2
+
+    # Hard ceiling for one whole /chat request (all LLM + tool steps).
+    request_timeout_seconds: float = 120.0
 
     model_config = SettingsConfigDict(
         env_file=".env", 
@@ -15,7 +24,7 @@ class AgentSettings(BaseSettings):
     )
 
 class MCPSettings(BaseSettings):
-    MCP_SERVER_URL: str = "http://127.0.0.1:8002/mcp"
+    server_url: str = "http://127.0.0.1:8002/mcp"
 
     model_config = SettingsConfigDict(
         env_file=".env", 
@@ -45,6 +54,17 @@ class PostgresSettings(BaseSettings):
         case_sensitive=False,
         extra="ignore"
     )
+
+class SecuritySettings(BaseSettings):
+    api_key: Optional[str] = None
+    rate_limit_per_minute: int = 20
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_prefix="SECURITY_",
+        case_sensitive=False,
+        extra="ignore"
+    )
     
 class Settings(BaseSettings):
     ENV: str = "development"
@@ -54,6 +74,7 @@ class Settings(BaseSettings):
     mcp: MCPSettings = Field(default_factory=MCPSettings)
     langfuse: LangFuseSettings = Field(default_factory=LangFuseSettings)
     postgres: PostgresSettings = Field(default_factory=PostgresSettings)
+    security: SecuritySettings = Field(default_factory=SecuritySettings)
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
